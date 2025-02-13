@@ -605,8 +605,8 @@ def get_flash_attn_version():
             fa_version = envs.VLLM_FLASH_ATTN_VERSION
 
         if not is_fa_version_supported(fa_version):
-            logger.error("Cannot use FA version %d is not supported due to %s",
-                         fa_version, fa_version_unsupported_reason(fa_version))
+            logger.error("Cannot use FA version %d because %s", fa_version,
+                         fa_version_unsupported_reason(fa_version))
 
         assert is_fa_version_supported(fa_version)
         return fa_version
