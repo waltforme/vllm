@@ -16,6 +16,7 @@ import gguf
 import huggingface_hub.constants
 import numpy as np
 import torch
+from fastsafetensors import SafeTensorsFileLoader, SingleGroup
 from huggingface_hub import HfFileSystem, hf_hub_download, snapshot_download
 from safetensors.torch import load_file, safe_open, save_file
 from tqdm.auto import tqdm
@@ -429,6 +430,23 @@ def safetensors_weights_iterator(
             for name in f.keys():  # noqa: SIM118
                 param = f.get_tensor(name)
                 yield name, param
+
+
+def fastsafetensors_weights_iterator(
+    hf_weights_files: List[str]
+) -> Generator[Tuple[str, torch.Tensor], None, None]:
+    """Iterate over the weights using fastsafetensor."""
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    logger.info("Fastsafetensors is using device %s", device)
+    loader = SafeTensorsFileLoader(SingleGroup(),
+                                   device,
+                                   nogds=True,
+                                   debug_log=True)
+    loader.add_filenames({0: hf_weights_files})  # {rank: files}
+    fb = loader.copy_files_to_device()
+    for name in loader.get_keys():
+        param = fb.get_tensor(tensor_name=name)
+        yield name, param
 
 
 def runai_safetensors_weights_iterator(
