@@ -31,9 +31,10 @@ from vllm.engine.multiprocessing import (ENGINE_DEAD_ERROR, IPC_DATA_EXT,
                                          RPCLoadAdapterRequest,
                                          RPCProcessRequest,
                                          RPCResetPrefixCacheRequest,
-                                         RPCSleepRequest, RPCStartupRequest,
-                                         RPCStartupResponse,
-                                         RPCUProfileRequest, RPCWakeUpRequest)
+                                         RPCSleepRequest, RPCSleepResponse,
+                                         RPCStartupRequest, RPCStartupResponse,
+                                         RPCUProfileRequest, RPCWakeUpRequest,
+                                         RPCWakeUpResponse)
 from vllm.engine.protocol import EngineClient
 # yapf: enable
 from vllm.envs import VLLM_RPC_TIMEOUT
@@ -247,7 +248,9 @@ class MQLLMEngineClient(EngineClient):
                         if queue is not None:
                             queue.put_nowait(exception)
                 # Put each output into the appropriate queue.
-                elif isinstance(request_outputs, RPCAdapterLoadedResponse):
+                elif isinstance(request_outputs,
+                                (RPCAdapterLoadedResponse, RPCSleepResponse,
+                                 RPCWakeUpResponse)):
                     self._add_output(request_outputs)
                 else:
                     for request_output in request_outputs:
@@ -689,13 +692,35 @@ class MQLLMEngineClient(EngineClient):
 
     async def sleep(self, level: int = 1) -> None:
         """Sleep the engine for a given level"""
-        return await self._send_one_way_rpc_request(
-            request=RPCSleepRequest(level), socket=self.input_socket)
+        request = RPCSleepRequest(level=level)
+
+        queue: asyncio.Queue[Union[None, BaseException]] = asyncio.Queue()
+        self.output_queues[request.request_id] = queue
+
+        request_bytes = pickle.dumps(request)
+        await self.input_socket.send_multipart((request_bytes, ), copy=False)
+
+        request_output = await queue.get()
+        self.output_queues.pop(request.request_id)
+
+        if isinstance(request_output, BaseException):
+            raise request_output
 
     async def wake_up(self) -> None:
         """Wake up the engine"""
-        return await self._send_one_way_rpc_request(
-            request=RPCWakeUpRequest.WAKE_UP, socket=self.input_socket)
+        request = RPCWakeUpRequest()
+
+        queue: asyncio.Queue[Union[None, BaseException]] = asyncio.Queue()
+        self.output_queues[request.request_id] = queue
+
+        request_bytes = pickle.dumps(request)
+        await self.input_socket.send_multipart((request_bytes, ), copy=False)
+
+        request_output = await queue.get()
+        self.output_queues.pop(request.request_id)
+
+        if isinstance(request_output, BaseException):
+            raise request_output
 
     async def add_lora(self, lora_request: LoRARequest) -> None:
         """Load a new LoRA adapter into the engine for future requests."""

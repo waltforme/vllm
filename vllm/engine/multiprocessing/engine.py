@@ -20,9 +20,10 @@ from vllm.engine.multiprocessing import (ENGINE_DEAD_ERROR, IPC_DATA_EXT,
                                          RPCLoadAdapterRequest,
                                          RPCProcessRequest,
                                          RPCResetPrefixCacheRequest,
-                                         RPCSleepRequest, RPCStartupRequest,
-                                         RPCStartupResponse,
-                                         RPCUProfileRequest, RPCWakeUpRequest)
+                                         RPCSleepRequest, RPCSleepResponse,
+                                         RPCStartupRequest, RPCStartupResponse,
+                                         RPCUProfileRequest, RPCWakeUpRequest,
+                                         RPCWakeUpResponse)
 # yapf: enable
 from vllm.logger import init_logger
 from vllm.outputs import RequestOutput
@@ -253,9 +254,9 @@ class MQLLMEngine:
                 elif isinstance(request, RPCResetPrefixCacheRequest):
                     self.reset_prefix_cache()
                 elif isinstance(request, RPCSleepRequest):
-                    self.sleep(request.value)
+                    self._handle_sleep_request(request)
                 elif isinstance(request, RPCWakeUpRequest):
-                    self.wake_up()
+                    self._handle_wakeup_request(request)
                 else:
                     raise ValueError("Unknown RPCRequest Type: "
                                      f"{type(request)}")
@@ -319,6 +320,32 @@ class MQLLMEngine:
         # Otherwise, send back the successful load message
         self._send_outputs(
             RPCAdapterLoadedResponse(request_id=request.request_id))
+
+    def _handle_sleep_request(self, request: RPCSleepRequest):
+        try:
+            self.sleep(request.level)
+        except BaseException as e:
+            # Send back an error if the adater fails to load
+            rpc_err = RPCError(request_id=request.request_id,
+                               is_engine_errored=False,
+                               exception=e)
+            self._send_outputs(rpc_err)
+            return
+        # Otherwise, send back the successful load message
+        self._send_outputs(RPCSleepResponse(request_id=request.request_id))
+
+    def _handle_wakeup_request(self, request: RPCWakeUpRequest):
+        try:
+            self.wake_up()
+        except BaseException as e:
+            # Send back an error if the adater fails to load
+            rpc_err = RPCError(request_id=request.request_id,
+                               is_engine_errored=False,
+                               exception=e)
+            self._send_outputs(rpc_err)
+            return
+        # Otherwise, send back the successful load message
+        self._send_outputs(RPCWakeUpResponse(request_id=request.request_id))
 
     def _health_check(self):
         # Send unhealthy if engine has already errored

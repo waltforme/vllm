@@ -127,13 +127,27 @@ class RPCResetPrefixCacheRequest(Enum):
     RESET_PREFIX_CACHE = 1
 
 
-class RPCSleepRequest(Enum):
-    SLEEP_LEVEL_1 = 1
-    SLEEP_LEVEL_2 = 2
+@dataclass
+class RPCSleepRequest:
+    level: int
+    # Set the default value of request_id to a new UUID
+    request_id: str = field(default_factory=lambda: str(uuid.uuid4()))
 
 
-class RPCWakeUpRequest(Enum):
-    WAKE_UP = 1
+@dataclass
+class RPCSleepResponse:
+    request_id: str
+
+
+@dataclass
+class RPCWakeUpRequest:
+    # Set the default value of request_id to a new UUID
+    request_id: str = field(default_factory=lambda: str(uuid.uuid4()))
+
+
+@dataclass
+class RPCWakeUpResponse:
+    request_id: str
 
 
 @dataclass
