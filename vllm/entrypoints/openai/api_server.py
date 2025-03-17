@@ -478,6 +478,9 @@ async def create_completion(request: CompletionRequest, raw_request: Request):
         return base(raw_request).create_error_response(
             message="The model does not support Completions API")
 
+    if await engine_client(raw_request).is_sleeping():
+        return Response(status_code=503)
+
     generator = await handler.create_completion(request, raw_request)
     if isinstance(generator, ErrorResponse):
         return JSONResponse(content=generator.model_dump(),
