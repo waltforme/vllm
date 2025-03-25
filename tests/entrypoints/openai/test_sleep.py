@@ -1,5 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
+import http
+
 import requests
 
 from ...utils import RemoteOpenAIServer
@@ -32,8 +34,24 @@ def test_sleep_mode():
         assert response.status_code == 200
         assert response.json().get("is_sleeping") is True
 
+        response = requests.post(remote_server.url_for("/v1/completions"),
+                                 json={
+                                     "model": MODEL_NAME,
+                                     "prompt": "What is vLLM?",
+                                     "max_tokens": 20,
+                                 })
+        assert response.status_code == http.HTTPStatus.SERVICE_UNAVAILABLE
+
         response = requests.post(remote_server.url_for("/wake_up"))
         assert response.status_code == 200
         response = requests.get(remote_server.url_for("/is_sleeping"))
         assert response.status_code == 200
         assert response.json().get("is_sleeping") is False
+
+        response = requests.post(remote_server.url_for("/v1/completions"),
+                                 json={
+                                     "model": MODEL_NAME,
+                                     "prompt": "What is vLLM?",
+                                     "max_tokens": 20,
+                                 })
+        assert response.status_code == http.HTTPStatus.OK
